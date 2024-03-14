@@ -4,7 +4,6 @@ from collections import defaultdict
 import win32com.client
 import win32com
 from datetime import datetime
-import shutil
 from pathlib import Path
 
 from pydantic import BaseModel
