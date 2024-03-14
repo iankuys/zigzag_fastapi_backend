@@ -14,7 +14,8 @@ import waitress
 PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
 PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
 BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
-OUT_FILE = Path(PATH_TO_THIS_FOLDER, "output.pptm").resolve()
+OUT_PPT = Path(PATH_TO_THIS_FOLDER, "output.pptm").resolve()
+OUT_PDF = Path(PATH_TO_THIS_FOLDER, "output.pdf").resolve()
 HOST = "127.0.0.1"
 PORT = "4997"
 URL_PREFIX = "/zigzag_backend"
@@ -121,12 +122,59 @@ def get_zigzag():
         print("Completed Zig Zag")
 
         # Save the PowerPoint file to a temporary location
-        wb.SaveAs(OUT_FILE)
+        wb.SaveAs(OUT_PDF, 32)
         ppt.Quit()
 
         print("Sending Powerpoint File.")
         
-        return send_file(OUT_FILE, as_attachment=True, download_name='output.pptm')
+        return send_file(OUT_PDF, as_attachment=True, download_name='output.pdf')
+
+    except Exception as e:
+        print("Error Loading Zig Zag", str(e))
+        return jsonify({"error": str(e)}), 500
+    
+
+@bp.route("get_ppt", methods=["POST"])
+def get_ppt():
+    try:
+        data = request.json  # Assuming the data is in JSON format
+        print(f'Requested data: {data}')
+
+        global path_to_pptx
+
+        visits = data.get("visits")
+        p_id = data.get("patient_id")
+
+        ppt = win32com.client.Dispatch("PowerPoint.Application")
+
+        # Process the data as needed
+        response_data = {"message": "Data received successfully"}
+        wb = ppt.Presentations.Open(PPT_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
+
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+
+        ppt.Run("SetDBMaster", SQLMasterData)
+
+        # if visits are more than one we run the macro for multiple zigzags
+        if len(visits) > 1:
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
+        else:
+            ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
+
+        print("Completed Zig Zag")
+
+        # Save the PowerPoint file to a temporary location
+        wb.SaveAs(OUT_PPT)
+        ppt.Quit()
+
+        print("Sending Powerpoint File.")
+        
+        return send_file(OUT_PPT, as_attachment=True, download_name='output.pptm')
 
     except Exception as e:
         print("Error Loading Zig Zag", str(e))
