@@ -46,8 +46,33 @@ cnxn = pyodbc.connect(
 patient_dict = defaultdict()
 queried = False
 
+<<<<<<< HEAD
 class Patient(BaseModel):
     id: int
+=======
+def timestamp_now(compact=False, only_ymd=False) -> str: 
+    """Credit: Brandon
+        Returns a string of the current date+time in the form of
+        YYYY-MM-DD hh:mm:ss
+    If `compact` == True, then returns in the form of
+        YYYYMMDD_hhmmss
+    If `only_ymd` == True, then only the first "year/month/day" portion is returned:
+        YYYY-MM-DD or YYYYMMDD
+    """
+    timestamp = datetime.now()
+    if compact:
+        if only_ymd:
+            return timestamp.strftime("%Y%m%d")
+        return timestamp.strftime("%Y%m%d_%H%M%S")
+    if only_ymd:
+        return timestamp.strftime("%Y-%m-%d")
+    return timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+class Patients(BaseModel):
+    patients: List[int]
+
+class Visits(BaseModel):
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
     visits: List[int]
 
 
@@ -123,13 +148,84 @@ def get_zigzag():
         print("Completed Zig Zag")
 
         # Save the PowerPoint file to a temporary location
+<<<<<<< HEAD
         wb.SaveAs(OUT_PDF, 32)
+=======
+        # copy operation
+        destination = this_session_folder / f"{session_id}.pdf"
+
+        wb.SaveAs(destination, 32)
+        ppt.Quit()
+
+        print("Sending PDF File.")
+
+        headers = {
+            "Access-Control-Expose-Headers": "*",
+            "Content-Type": "application/pdf"
+        }
+        
+        return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pdf')
+        
+    except Exception as e:
+        print("Error Loading Zig Zag", str(e))
+        return ({"detail": "Not Found", 
+                 "error": str(e)})
+
+@app.post("/get_ppt")
+async def get_ppt(request: RequestedZigzag):
+    try:
+        global path_to_pptx
+
+        p_id = request.p_id
+        visits = list(request.visits)
+        print(f'Requested data: {p_id}, {request.visits}')
+
+        cur_time = timestamp_now(compact=True)
+        session_id = f"{cur_time}-{'-'.join(map(str, list(request.visits)))}"
+        this_session_folder = PATH_TO_SESSIONS_FOLDER / session_id
+        
+        # make new folder for session
+        this_session_folder.mkdir()
+
+        # copy operation
+        destination = this_session_folder / f"{session_id}.pptm"
+        destination.write_bytes(PPT_FILE.read_bytes())
+
+        ppt = win32com.client.Dispatch("PowerPoint.Application")
+
+        wb = ppt.Presentations.Open(destination)
+        # Original location: \\marcfs\Database\Reports\ZigZag\stdbatt_v2022.pptm
+        
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+
+        ppt.Run("SetDBMaster", SQLMasterData)
+
+        # if visits are more than one we run the macro for multiple zigzags
+        if len(visits) > 1:
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
+        else:
+            ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
+
+        print("Completed Zig Zag")
+
+        # Save the PowerPoint file to a temporary location
+        wb.SaveAs(destination)
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
         ppt.Quit()
 
         print("Sending Powerpoint File.")
         
+<<<<<<< HEAD
         return send_file(OUT_PDF, as_attachment=True, download_name='output.pdf')
 
+=======
+        return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pptm')
+    
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
     except Exception as e:
         print("Error Loading Zig Zag", str(e))
         return jsonify({"error": str(e)}), 500
