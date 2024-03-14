@@ -84,8 +84,7 @@ def get_zigzag():
         
         ppt = win32com.client.Dispatch('PowerPoint.Application')
         ppt.Visible = True
-        print(visits)
-        print(p_id)
+
         # Process the data as needed
         response_data = {'message': 'Data received successfully'}
         ppt.Presentations.Open(r'Z:\Reports\ZigZag\AutoZigZagChartSQL C2.ppt')
@@ -94,7 +93,10 @@ def get_zigzag():
     
         # if visits are more than one we run the macro for multiple zigzags
         if len(visits) > 1:    
-            ppt.Run("DataEntry", p_id)
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
         
@@ -103,8 +105,6 @@ def get_zigzag():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-
-
 if __name__ == "__main__":
     flask_app.run()
 
