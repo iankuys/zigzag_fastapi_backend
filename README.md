@@ -1,6 +1,6 @@
 # VueZigZagBE
 
-Written with Python 3.11.3.
+Written with Python 3.12.0.
 
 ## Dev environment set up
 
