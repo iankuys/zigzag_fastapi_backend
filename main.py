@@ -20,6 +20,9 @@ PATH_TO_SESSIONS_FOLDER = PATH_TO_THIS_FOLDER / "sessions"
 PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
 BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
 
+if PATH_TO_SESSIONS_FOLDER.is_dir() == False:
+    PATH_TO_SESSIONS_FOLDER.mkdir()
+
 origins = ["*"]
 
 app.add_middleware(
