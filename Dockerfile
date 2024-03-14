@@ -4,18 +4,17 @@ ENV TZ="America/Los_Angeles"
 ENV PYTHONUNBUFFERED=1
 
 # set a directory for the app
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # copy all the files to the container
 COPY . .
-
 
 RUN python -m pip install --upgrade pip
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # define the port number the container should expose
-EXPOSE 4997
+EXPOSE 4998
 
 # run the command
-CMD ["waitress-serve", "--host", "0.0.0.0", "--port", "4997", "main:flask_app"]
+CMD ["waitress-serve", "--host", "0.0.0.0", "--port", "4998", "main:flask_app"]
