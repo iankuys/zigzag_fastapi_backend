@@ -21,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 import atexit
 import threading
+from threading import Event
 
 import uvicorn
 from fastapi import FastAPI
@@ -29,18 +30,27 @@ from fastapi.responses import FileResponse
 
 from background_task import BackgroundTasks
 from pydantic_models import Patients, Visits, RequestedZigzag
+from helper import get_connection_str, timestamp_now
 
 patient_dict = defaultdict()
 queried = False
+<<<<<<< HEAD
 >>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
+=======
+stop_event = Event()
+>>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
 PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
 PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
 BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
+<<<<<<< HEAD
 OUT_PPT = Path(PATH_TO_THIS_FOLDER, "output.pptm").resolve()
 OUT_PDF = Path(PATH_TO_THIS_FOLDER, "output.pdf").resolve()
 HOST = "127.0.0.1"
 PORT = "4997"
 URL_PREFIX = "/zigzag_backend"
+=======
+CONNECTION_STR = Path(PATH_TO_THIS_FOLDER, "connection_string.txt").resolve()
+>>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
 
 <<<<<<< HEAD
 bp = Blueprint(
@@ -50,11 +60,12 @@ bp = Blueprint(
 if PATH_TO_SESSIONS_FOLDER.is_dir() == False:
     PATH_TO_SESSIONS_FOLDER.mkdir()
 
-BACKGROUND_TASK = BackgroundTasks(path=PATH_TO_SESSIONS_FOLDER)
+BACKGROUND_TASK = BackgroundTasks(path=PATH_TO_SESSIONS_FOLDER, stop_event=stop_event)
 
 print("Starting background thread")
 BACKGROUND_TASK.start()
 
+<<<<<<< HEAD
 origins = ["*"]
 >>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
 
@@ -138,6 +149,15 @@ def get_visits():
 @bp.route("/get_zigzag", methods=["POST"])
 def get_zigzag():
 =======
+=======
+SQLMasterData = (get_connection_str(CONNECTION_STR, 1))
+cnxn = pyodbc.connect(get_connection_str(CONNECTION_STR, 0))
+
+app = FastAPI(openapi_url=None)
+
+origins = ["*"]
+
+>>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -195,11 +215,17 @@ def get_zigzag(request: RequestedZigzag):
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
 
+<<<<<<< HEAD
         # Process the data as needed
         response_data = {"message": "Data received successfully"}
         wb = ppt.Presentations.Open(PPT_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
 
+=======
+        ppt_file = ppt.Presentations.Open(destination)
+        # Original location: \\marcfs\Database\Reports\ZigZag\stdbatt_v2022.pptm
+        
+>>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
         ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
 
@@ -223,8 +249,8 @@ def get_zigzag(request: RequestedZigzag):
         # copy operation
         destination = this_session_folder / f"{session_id}.pdf"
 
-        wb.SaveAs(destination, 32)
-        ppt.Quit()
+        ppt_file.SaveAs(destination, 32)
+        ppt_file.Close()
 
         print("Sending PDF File.")
 
@@ -262,7 +288,7 @@ def get_ppt(request: RequestedZigzag):
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
 
-        wb = ppt.Presentations.Open(destination)
+        ppt_file = ppt.Presentations.Open(destination)
         # Original location: \\marcfs\Database\Reports\ZigZag\stdbatt_v2022.pptm
         
         ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
@@ -282,9 +308,14 @@ def get_ppt(request: RequestedZigzag):
         print("Completed Zig Zag")
 
         # Save the PowerPoint file to a tempor  ary location
+<<<<<<< HEAD
         wb.SaveAs(destination)
 >>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
         ppt.Quit()
+=======
+        ppt_file.SaveAs(destination)
+        ppt_file.Close()
+>>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
 
         print("Sending Powerpoint File.")
         
@@ -536,9 +567,7 @@ if __name__ == "__main__":
 >>>>>>> refs/rewritten/main-3
 =======
     uvicorn.run(app, port=8000)
-    print(threading.active_count())
-    BACKGROUND_TASK.join()
-    print(threading.active_count())
+    stop_event.set()
 
     
 >>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)

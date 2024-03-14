@@ -1,7 +1,1 @@
-"DRIVER={SQL Server};"
-"Provider=SQLOLEDB;"
-"Server=Spinal;"
-"Database=IBACohortReports;"
-"Integrated Security=SSPI;"
-"DataTypeCompatibility=80;"
-"MARS Connection=True;"
+"DRIVER={SQL Server};Provider=SQLOLEDB;Server=Spinal;Database=IBACohortReports;Integrated Security=SSPI;DataTypeCompatibility=80;MARS Connection=True;"
