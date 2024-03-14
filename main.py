@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from background_task import BackgroundTasks
-from pydantic_models import Patients, Visits, RequestedZigzag
+from models.pydantic_models import Patients, Visits, RequestedZigzag
 from helper import get_connection_str, timestamp_now
 
 patient_dict = defaultdict()
