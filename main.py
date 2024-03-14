@@ -6,6 +6,7 @@ import win32com
 from datetime import datetime
 from pathlib import Path
 
+import uvicorn
 from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -162,4 +163,5 @@ async def get_zigzag(request: RequestedZigzag):
         return ({"detail": "Not Found", 
                  "error": str(e)})
 
-
+if __name__ == "__main__":
+    uvicorn.run(app, port=8000, host="0.0.0.0")
