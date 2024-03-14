@@ -176,13 +176,13 @@ def get_patient():
         print(f'Will Query DB: {not queried}')
         if not queried:
             cursor.execute(
-                "SELECT [PatientID], [VisitNumber] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
+                "SELECT [PatientID], [VisitNumber], YEAR(ExamDate) as [Year] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
             )
             rows = cursor.fetchall()
             for row in rows:
                 if row.PatientID not in patient_dict:
                     patient_dict[row.PatientID] = []
-                patient_dict[row.PatientID].append(row.VisitNumber)
+                patient_dict[row.PatientID].append((row.VisitNumber, row.Year))
             queried = True
             print('Queried Complete!')
 
@@ -196,10 +196,10 @@ def get_patient():
 @app.get("/get_visits")
 def get_visits(p_id: int):
     try:
-        return Visits(visits=patient_dict[int(p_id)])
+        return Visits(visits=[visit[0] for visit in patient_dict[int(p_id)]], years=[visit[1] for visit in patient_dict[int(p_id)]])
     except Exception as e:
         print("Unable to find patient ID", str(e))
-        return Visits(visits=[])
+        return Visits(visits=[], years=[])
 
 @app.post("/get_zigzag")
 def get_zigzag(request: RequestedZigzag):

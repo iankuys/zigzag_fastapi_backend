@@ -6,6 +6,7 @@ class Patients(BaseModel):
 
 class Visits(BaseModel):
     visits: List[int]
+    years: List[int]
 
 class RequestedZigzag(BaseModel):
     p_id: int
