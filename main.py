@@ -198,7 +198,7 @@ def get_visits(p_id: int):
     try:
         return Visits(visits=[visit[0] for visit in patient_dict[int(p_id)]], years=[visit[1] for visit in patient_dict[int(p_id)]])
     except Exception as e:
-        print_log("Unable to find patient ID", str(e))
+        print_log(f"Unable to find patient ID {str(e)}")
         return Visits(visits=[], years=[])
 
 @app.post("/get_zigzag")
