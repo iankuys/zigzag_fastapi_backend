@@ -28,9 +28,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from background_task import BackgroundTasks
+from utils.background_task import BackgroundTasks
 from models.pydantic_models import Patients, Visits, RequestedZigzag
-from helper import get_connection_str, timestamp_now
+from utils.helper import get_connection_str, timestamp_now
 
 patient_dict = defaultdict()
 queried = False
