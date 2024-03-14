@@ -1,5 +1,5 @@
 import flask
-from flask import Blueprint, Flask, jsonify, render_template, request
+from flask import Blueprint, Flask, jsonify, send_file, request
 import pyodbc
 from flask_cors import CORS
 from collections import defaultdict
@@ -12,8 +12,9 @@ from pathlib import Path
 import waitress
 
 PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
-PPT_FILE = Path(PATH_TO_THIS_FOLDER, "AutoZigZagChartSQL C2.ppt").resolve()
+PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
 BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
+OUT_FILE = Path(PATH_TO_THIS_FOLDER, "output.pptm").resolve()
 HOST = "127.0.0.1"
 PORT = "4997"
 URL_PREFIX = "/zigzag_backend"
@@ -97,18 +98,15 @@ def get_zigzag():
         p_id = data.get("patient_id")
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
-        ppt.Visible = True
         print('here0')
 
         # Process the data as needed
         response_data = {"message": "Data received successfully"}
-        ppt.Presentations.Open(PPT_FILE)
+        wb = ppt.Presentations.Open(PPT_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
-        print('here1')
 
         ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
-        print('here2')
 
         ppt.Run("SetDBMaster", SQLMasterData)
 
@@ -122,12 +120,18 @@ def get_zigzag():
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
         print("Completed Zig Zag")
-        return jsonify(response_data)
+
+        # Save the PowerPoint file to a temporary location
+        wb.SaveAs(OUT_FILE)
+        ppt.Quit()
+
+        print("Sending Powerpoint File.")
+        
+        return send_file(OUT_FILE, as_attachment=True, download_name='output.pptm')
 
     except Exception as e:
         print("Error Loading Zig Zag", str(e))
         return jsonify({"error": str(e)}), 500
-
 
 flask_app = Flask(__name__)
 CORS(flask_app)  # Enable CORS for all routes

@@ -6,7 +6,7 @@ Dim NPsychMaster As String
 Const SQLMasterData As String = _
         "Provider=SQLOLEDB;" _
          & "Server=Spinal;" _
-         & "Database=IBACohortReports;" _
+         & "Database=IBACohort;" _
          & "Integrated Security=SSPI;" _
          & "DataTypeCompatibility=80;" _
          & "MARS Connection=True;"
@@ -21,16 +21,18 @@ Dim XMax As Single
 Dim XMin As Single
 Dim LabelScores(80, 1) As Variant
 Dim TestStdDevs(28) As Variant
-Dim TestScores1(28) As Variant
+''Dim TestScores1(28) As Variant
 Public aPID As Integer
 Public aSID As Integer
 Public aVnum As Integer
 Public aColor As Integer
-     
-Sub DataEntry()
+
+Sub DataEntry(pid)
     aPID = 0
     Load UserForm1
+    UserForm1.txtPID = pid
     UserForm1.Show
+    
 End Sub
 
 'Public Sub SetDBMaster(db As String)
@@ -51,6 +53,8 @@ Sub initialize()
 Dim i As Integer
 Dim SQL As String
     
+    
+    ''2022-08-11 DKH
     For i = 0 To 28
         YArray(i) = 138.75 + (19.5 * i)
     Next i
@@ -135,323 +139,372 @@ Dim sex As Integer
 Dim mean As Integer
 Dim sd As Integer
 Dim connstring As String
+Dim varCutOff As Integer
+
+''2020-09-04 DKH
+''To test and run without Access DB
+''In the Immediate Windows, run the following commands
+''SetDBMaster  <-- sets up access to SQL Database
+''DataEntry  <--run the 3 lines function...
+
+''SetDBMaster
+''SetSubject 4000, 1, 0, 1 <--Run single line chart
+''Patient 4000, SID 1, Visit 0, Color Red 1
+
+
+''2021-01-05  View items labels for VBA
+''https://stackoverflow.com/questions/52940674/how-to-find-the-label-of-a-shape-on-a-powerpoint-slide
+''On the Home tab in Powerpoint there is an Editing submenu that contains a Select function. As pictured here:
+''When you click on Select, another submenu appears that shows a Selection Pane function. If you click on that, the selction pane shows up on the right hand of the screen. In that pane you will see all of the objects on the current slide and the names Powerpoint has given to each of them.
+
 
     Set mydocument = ActivePresentation.Slides(1)
 
     Set conn = New ADODB.Connection
     Set cmd = New ADODB.Command
 
-    'conn.Provider = "Microsoft.Jet.OLEDB.4.0"
-    'conn.Properties("Jet OLEDB:System Database") = "z:\alzdb.mdw"
-    conn.Open NPsychMaster '"Data Source=" & NPsychMaster , "report", "report"
-
+    conn.Open NPsychMaster
     cmd.ActiveConnection = conn
-    
-    'Find age at visit date
-    If pid >= 30000 And pid < 40000 Then ''REDCap CADC 2017-01-27 DKH.
-        cmd.CommandText = "SELECT [Age] AS age, [total_edu_yrs] AS edu FROM [REDCapImports].[pid184].[vwNpsychDemo] WHERE CADCID = " & pid
-    Else
-        cmd.CommandText = "Select IBAUtilities.dbo.AgeInYears(pt.birthdate, pv.PhysicalExamDate, pv.NeuropsychExamDate) as age, df.EducationYears as edu, df.sex AS Sex from IBACohort.dbo.tblPatients pt Inner Join IBACohort.dbo.tblPatientVisits pv on pt.patientid=pv.patientid left join IBACohort.dbo.tblDemographicsFull df on pt.patientid=df.patientid where pt.PatientID = " & pid & " And pv.VisitNumber = " & vnum
-    End If
-    
-    cmd.CommandType = adCmdText
+            
+    ''updated to StoreProcedure... quick hack to combine C2 and TCog.
+    ''DKH 2021-08-16
+    cmd.CommandText = "spNPsychSelectedPatientZigZag_v2022"
+    cmd.CommandType = adCmdStoredProc
+    cmd.Parameters.Append cmd.CreateParameter("pPatientID", adInteger, adParamInput, , CStr(pid))
+    cmd.Parameters.Append cmd.CreateParameter("pVisitNumber", adInteger, adParamInput, , CStr(vnum))
     
     Set rs = cmd.Execute(retval)
     
-    If Not rs.EOF Then
-        age = rs("age")
-        edu = rs("edu")
-        If rs("sex") = "M" Then
-            sex = 1
-        ElseIf rs("Sex") = "F" Then
-            sex = 2
-        End If
-        rs.Close
-    Else
-        MsgBox "Error unable to find subject record to compute Age. Exiting..."
-        Exit Sub
-    End If
+    age = rs("age")
+    edu = rs("edu")
+    sex = rs("Sex")
+       
+    ''TestStdDev(index)
+    ''Shape
+    ''ScoreValues
     
-    'posibly changing vwNPsychStdBattRecords to tblCVLT
-    cmd.CommandText = "select * from IBACohort.dbo.vwNPsychStdBattRecords where PatientID=" & pid & " and VisitNumber=" & vnum
-    cmd.CommandType = adCmdText
+    ''Don't draw line if SD greate than varCutOff. arbitrarily using 5. DKH 2021-01-05
+    ''handling these + data status codes
+    ''88/888=Optional item
+    ''95/995=Physical problem
+    ''96/996=Cognitive/behavior problem
+    ''97/997=Other problem
+    ''98/998=Verbal refusal
     
-    Set rs = cmd.Execute(retval)
+    varCutOff = 5
+       
+    ''Setup Word List items:
+    
+    Dim varWordlist As Integer
+    varWordlist = IIf(IsNull(rs("Wordlist Test")), 0, rs("Wordlist Test"))
+    
+    ''Word Test Label
+    mydocument.Shapes("txtlblWordlist").TextFrame.TextRange.Text = IIf(IsNull(rs("Wordlist Test Label")), "", rs("Wordlist Test Label"))
+    
+    If varWordlist = 1 Then ''RAVLT
+      ''TestItem1
+      TestStdDevs(0) = rs("RAVLT Total Learning SD")
+      mydocument.Shapes("pp01_Score").TextFrame.TextRange.Text = "(" & rs("RAVLT Total Learning") & ")"
+      setGenericScoreValuesAgeTestSection "TotalLearn", age, "01", "[Npsych].[tlkpRAVLTAgeMeanStdDev]"
+    
+      mydocument.Shapes("pp01_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("RAVLT 1-5 Total Learning Scores") & ")"
     
     
-    TestStdDevs(0) = rs("MMSE SD")
-    mydocument.Shapes("TxtBoxMMSE").TextFrame.TextRange.Text = "(" & rs("MMSE MMSE") & ")"
-    
-    TestStdDevs(1) = rs("MOCA SD")
-    mydocument.Shapes("sc1").TextFrame.TextRange.Text = "(" & rs("MoCA TS") & ")"
-    setGenericScoreValues age, edu, 1, "tlkpMoCAAgeEduMeanStdDev"
-    
-    
-    TestStdDevs(2) = rs("CWLT T1TSD")
-    mydocument.Shapes("txtBoxTrial1").TextFrame.TextRange.Text = "(" & rs("CWLT T1T") & ")"
-    
-    TestStdDevs(3) = rs("CWLT T2TSD")
-    mydocument.Shapes("TxtBoxTrial2").TextFrame.TextRange.Text = "(" & rs("CWLT T2T") & ")"
-    
-    TestStdDevs(4) = rs("CWLT T3TSD")
-    mydocument.Shapes("TxtBoxTrial3").TextFrame.TextRange.Text = "(" & rs("CWLT T3T") & ")"
-    
-    TestStdDevs(5) = rs("CWLT 5mDTSD")
-    mydocument.Shapes("TxtBox5MinRecall").TextFrame.TextRange.Text = "(" & rs("CWLT 5mDT") & ")"
-    
-    TestStdDevs(6) = rs("CWLT 30mDTSD")
-    mydocument.Shapes("TxtBox30MinRecall").TextFrame.TextRange.Text = "(" & rs("CWLT 30mDT") & ")"
-    
-    TestStdDevs(7) = IIf(rs("CWLT 30mRTSD") < -1# And rs("CWLT 30mRTSD") > -2#, -1, rs("CWLT 30mRTSD"))
-    mydocument.Shapes("TxtBox30MinRecognition").TextFrame.TextRange.Text = "(" & rs("CWLT 30mRT") & ")"
+      ''TestItem2
+      TestStdDevs(1) = rs("RAVLT Trial6 SD")
+      mydocument.Shapes("pp02_Score").TextFrame.TextRange.Text = "(" & rs("RAVLT Trial6") & ")"
+      setGenericScoreValuesAgeTestSection "Trial6", age, "02", "[Npsych].[tlkpRAVLTAgeMeanStdDev]"
+      
+      ''TestItem3
+      TestStdDevs(2) = rs("RAVLT Long-Delay Recall SD")
+      mydocument.Shapes("pp03_Score").TextFrame.TextRange.Text = "(" & rs("RAVLT Long-Delay Recall") & ")"
+      setGenericScoreValuesAgeTestSection "Trial7", age, "03", "[Npsych].[tlkpRAVLTAgeMeanStdDev]"
+      
+      ''TestItem4
+      TestStdDevs(3) = rs("RAVLT Long-Delay Recog True Pos SD")
+      mydocument.Shapes("pp04_Score").TextFrame.TextRange.Text = "(" & rs("RAVLT Long-Delay Recog True Pos") & ")"
+      setGenericScoreValuesAgeTestSection "DelayedRecog", age, "04", "[Npsych].[tlkpRAVLTAgeMeanStdDev]"
         
-    'Test Line 8
-    If rs("CRAFTImmediate SD") = Null Then
-        TestStdDevs(8) = ((rs("WMS3LM1 StARaw") - 13.9) / 3.9)
-        mydocument.Shapes("sc8").TextFrame.TextRange.Text = "(" & rs("WMS3LM1 StARaw") & ")"
+      mydocument.Shapes("pp04_ScoreLabels").TextFrame.TextRange.Text = "(false-positive errors=" & rs("RAVLT Long-Delay Recog False Pos") & ")"
+      
+    ElseIf varWordlist = 2 Then ''CERAD
+      ''HardCoded Mean and SD from [IBACohortDE_UDS20].[Npsych].[tlkpCERADWL_MeanStdDev] DKH 2022-08-17
+      ''TestItem1
+      TestStdDevs(0) = rs("CWLT TT SD")
+      mydocument.Shapes("pp01_Score").TextFrame.TextRange.Text = "(" & rs("CWLT TT") & ")"
+      setGenericScoreValuesMeanSD 20.9, 3.9, "01"
+      
+    
+      ''TestItem2
+      TestStdDevs(1) = rs("CWLT 5mDT SD")
+      mydocument.Shapes("pp02_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 5mDT") & ")"
+      setGenericScoreValuesMeanSD 7.2, 1.8, "02"
+      
+      ''TestItem3
+      TestStdDevs(2) = rs("CWLT 30mDT SD")
+      mydocument.Shapes("pp03_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 30mDT") & ")"
+      setGenericScoreValuesMeanSD 7, 1.8, "03"
+      
+      ''TestItem4
+      TestStdDevs(3) = rs("CWLT 30mRT SD")
+      mydocument.Shapes("pp04_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 30mRT") & ")"
+      setGenericScoreValuesMeanSD 19.6, 0.5, "04"
+        
+    ElseIf varWordlist = 2 Then ''CVLT
+      ''TestItem1
+      TestStdDevs(0) = Null
+      mydocument.Shapes("pp01_Score").TextFrame.TextRange.Text = "(" & rs("CVLT TrialTS") & ")"
+      'setGenericScoreValuesAgeTestSection "TotalLearn", age, "01", "tlkpRAVLTAgeMeanStdDev"
+    
+      ''TestItem2
+      TestStdDevs(1) = Null
+      mydocument.Shapes("pp02_Score").TextFrame.TextRange.Text = "(" & rs("CVLT ShortDelayFree") & ")"
+      'setGenericScoreValuesAgeTestSection "Trial6", age, "02", "tlkpRAVLTAgeMeanStdDev"
+      
+      ''TestItem3
+      TestStdDevs(2) = Null
+      mydocument.Shapes("pp03_Score").TextFrame.TextRange.Text = "(" & rs("CVLT LongDelayFree") & ")"
+      'setGenericScoreValuesAgeTestSection "Trial7", age, "03", "tlkpRAVLTAgeMeanStdDev"
+      
+      ''TestItem4
+      TestStdDevs(3) = Null
+      mydocument.Shapes("pp04_Score").TextFrame.TextRange.Text = "(" & rs("CVLT LongDelayRecogHits") & ")"
+      'setGenericScoreValuesAgeTestSection "DelayedRecog", age, "04", "tlkpRAVLTAgeMeanStdDev"
+
     Else
-        TestStdDevs(8) = rs("CRAFTImmediate SD")
-        mydocument.Shapes("sc8").TextFrame.TextRange.Text = "(" & rs("CRAFT Immediate Paraphrase") & ")"
+    ''Other
+      TestStdDevs(0) = Null
+      'mydocument.Shapes("pp01_Score").TextFrame.TextRange.Text = "(" & rs("CWLT TT") & ")"
+      'setGenericScoreValuesAgeTestSection "TotalLearn", age, "01", "tlkpRAVLTAgeMeanStdDev"
+    
+      ''TestItem2
+      TestStdDevs(1) = Null
+      'mydocument.Shapes("pp02_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 5mDT") & ")"
+      'setGenericScoreValuesAgeTestSection "Trial6", age, "02", "tlkpRAVLTAgeMeanStdDev"
+      
+      ''TestItem3
+      TestStdDevs(2) = Null
+      'mydocument.Shapes("pp03_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 30mDT") & ")"
+      'setGenericScoreValuesAgeTestSection "Trial7", age, "03", "tlkpRAVLTAgeMeanStdDev"
+      
+      ''TestItem4
+      TestStdDevs(3) = Null
+      'mydocument.Shapes("pp04_Score").TextFrame.TextRange.Text = "(" & rs("CWLT 30mRT") & ")"
+      'setGenericScoreValuesAgeTestSection "DelayedRecog", age, "04", "tlkpRAVLTAgeMeanStdDev"
+        
     End If
-    setGenericScoreValues age, edu, 8, "tlkpCRAFTImmediateAgeEduMeanStdDev"
     
+    ''TestItem5
+    TestStdDevs(4) = rs("CRAFT Immediate Paraphrase ZScore")
+    mydocument.Shapes("pp05_Score").TextFrame.TextRange.Text = "(" & rs("CRAFT Immediate Paraphrase") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "05", "[UDS3].[tlkpCraftStoryRecall-Immediate-Paraphrase_SexAgeEduStdDev]"
     
-    'Test Line 9
-    If rs("CRAFTDelayed SD") = Null Then
-        TestStdDevs(9) = ((rs("WMS3LM2 StARaw") - 12.6) / 4.3)
-        mydocument.Shapes("sc9").TextFrame.TextRange.Text = "(" & rs("WMS3LM2 StARaw") & ")"
+    ''TestItem6
+    TestStdDevs(5) = rs("CRAFT Delayed Paraphrase ZScore")
+    mydocument.Shapes("pp06_Score").TextFrame.TextRange.Text = "(" & rs("CRAFT Delayed Paraphrase") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "06", "[UDS3].[tlkpCraftStoryRecall-Delayed-Paraphrase_SexAgeEduStdDev]"
+    
+    ''TestItem7; update to DUFF calculations DKH 2023-10-13
+    ''TestStdDevs(6) = rs("BVMT TotalRecall ZScore")
+    TestStdDevs(6) = rs("BVMT DUFF TotalRecall ZScore")
+    ''mydocument.Shapes("pp07_Score").TextFrame.TextRange.Text = "(" & rs("BVMT TotalRecall TScore") & ")"
+    mydocument.Shapes("pp07_Score").TextFrame.TextRange.Text = "(" & rs("BVMT DUFF TotalRecall TScore") & ")"
+    setGenericScoreValuesMeanSD 50, 10, "07"
+    'setGenericScoreValuesAgeTestSection "ListB", age, "07", "tlkpRAVLTAgeMeanStdDev"
+    
+    mydocument.Shapes("pp07_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("BVMT 1-3 Total Learning Scores") & ") (" & rs("BVMT TotalRecall") & ")"
+      
+    '
+    ''TestItem8
+    ''TestStdDevs(7) = rs("BVMT Delayed Recall ZScore")
+    TestStdDevs(7) = rs("BVMT DUFF Delayed Recall ZScore")
+    ''mydocument.Shapes("pp08_Score").TextFrame.TextRange.Text = "(" & rs("BVMT Delayed Recall TScore") & ")"
+    mydocument.Shapes("pp08_Score").TextFrame.TextRange.Text = "(" & rs("BVMT DUFF Delayed Recall TScore") & ")"
+    setGenericScoreValuesMeanSD 50, 10, "08"
+    'setGenericScoreValuesAgeTestSection "Trial6", age, "08", "tlkpRAVLTAgeMeanStdDev"
+    
+    mydocument.Shapes("pp08_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("BVMT Delayed Recall") & ")"
+    
+    ''TestItem9
+    ''TestStdDevs(8) = rs("BVMT Hits ZScore")
+    If IsNull(rs("BVMT Hits")) Then
+        TestStdDevs(8) = Null
+        mydocument.Shapes("pp09_Score").TextFrame.TextRange.Text = ""
     Else
-        TestStdDevs(9) = rs("CRAFTDelayed SD")
-        mydocument.Shapes("sc9").TextFrame.TextRange.Text = "(" & rs("CRAFT Delayed Paraphrase") & ")"
+        TestStdDevs(8) = setBVMTHits_ZScoreValuesAge(age, "09", rs("BVMT Hits"))
+        mydocument.Shapes("pp09_Score").TextFrame.TextRange.Text = "(" & rs("BVMT False Alarm") & "))" & "(" & rs("BVMT Hits") & ")"
+        setBVMTHits_ScoreValuesAge age, "09"
     End If
-    setGenericScoreValues age, edu, 9, "tlkpCRAFTDelayedAgeEduMeanStdDev"
     
-    
-    'Test Line 10
-    TestStdDevs(10) = rs("BENSONDelayRecall SD") ' - Benson CFT: Delayed Recall
-    mydocument.Shapes("sc10").TextFrame.TextRange.Text = "(" & rs("BENSON CFT Delayed Recall") & ")"
-    setBensonCFTDelay age, edu, sex, 10
-    
-    'Test Line 11
-    TestStdDevs(11) = rs("WMS3F1 SD")
-    mydocument.Shapes("txtBoxWMS3Faces1").TextFrame.TextRange.Text = "(" & rs("WMS3F1 SS") & ")"
-    
+    ''TestItem10
+    TestStdDevs(9) = rs("BENSON CFT Delayed Recall ZScore")
+    mydocument.Shapes("pp10_Score").TextFrame.TextRange.Text = "(" & rs("BENSON CFT Delayed Recall") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "10", "[UDS3].[tlkpBensonComplexFigure-Recall_SexAgeEduStdDev]"
+
+    ''TestItem11
+    TestStdDevs(10) = rs("TOPF StdS SD")
+    mydocument.Shapes("pp11_Score").TextFrame.TextRange.Text = "(" & rs("TOPF StdS") & ")"
+    ' pass values to standard score (mean:100, std:15)
+    setGenericScoreValuesMeanSD 100, 15, "11"
+    '    setGenericScoreValuesAgeTestSection "Error", age, 11, "tlkpRAVLTAgeMeanStdDev", True
+
     'Test Line 12
-    TestStdDevs(12) = rs("WMS3F2 SD")
-    mydocument.Shapes("txtBoxWMS3Faces2").TextFrame.TextRange.Text = "(" & rs("WMS3F2 SS") & ")"
-    
-    'Test Line 13
-    TestStdDevs(13) = rs("WAISRInfo SD")
-    
-    'Test Line 14
-    ''Modified added -19 and check isnull DKH 2017-05-05
-    If IsNull(rs("NumSpan DIGFORSL SD")) Or rs("NumSpan DIGFORSL SD") = -19 Then
-        TestStdDevs(14) = Round(rs("WAIS3DS Fwd Len SD"), 6)
-        mydocument.Shapes("sc14").TextFrame.TextRange.Text = "(" & rs("WAIS3DS Fwd Len") & ")"
-    Else
-        TestStdDevs(14) = rs("NumSpan DIGFORSL SD")
-        mydocument.Shapes("sc14").TextFrame.TextRange.Text = "(" & rs("NumSpan DIGFORSL") & ")"
-    End If
-    
-    setGenericScoreValues age, edu, 14, "tlkpNumSpanForwardAgeEduMeanStdDev"
+    TestStdDevs(11) = rs("NumSpan DIGFORSL ZScore")
+    mydocument.Shapes("pp12_Score").TextFrame.TextRange.Text = "(" & rs("NumSpan DIGFORSL") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "12", "[UDS3].[tlkpNumberSpanTest-Forward-Longest-Span_SexAgeEduStdDev]"
     
     'Digit Span Backwards Length
-    'Test Line 15
-    ''Modified added -19 and check isnull DKH 2017-05-05
-    If IsNull(rs("NumSpan DIGBACLS SD")) Or rs("NumSpan DIGBACLS SD") = -19 Then
-        TestStdDevs(15) = rs("WAIS3DS Bkwd Len SD")
-        mydocument.Shapes("sc15").TextFrame.TextRange.Text = "(" & rs("WAIS3DS Bkwd Len") & ")"
-    Else
-        TestStdDevs(15) = rs("NumSpan DIGBACLS SD")
-        mydocument.Shapes("sc15").TextFrame.TextRange.Text = "(" & rs("NumSpan DIGBACLS") & ")"
-    End If
+    'Test Line 13
+    TestStdDevs(12) = rs("NumSpan DIGBACLS ZScore")
+    mydocument.Shapes("pp13_Score").TextFrame.TextRange.Text = "(" & rs("NumSpan DIGBACLS") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "13", "[UDS3].[tlkpNumberSpanTest-Backward-Longest-Span_SexAgeEduStdDev]"
+      
+    '    'Test Line 14
+    TestStdDevs(13) = rs("SDMT SD")
+    mydocument.Shapes("pp14_Score").TextFrame.TextRange.Text = "(" & rs("SDMT #Written") & ")"
+    setGenericScoreValuesAgeEdu age, edu, 14, "[Npsych].[tlkpSymbolDigitModalityAgeEduMeanStdDev]"
+
+    '    'Test Line 15
+    TestStdDevs(14) = rs("DKEFS C2 WordReading ZScore")
+    mydocument.Shapes("pp15_Score").TextFrame.TextRange.Text = "(" & rs("DKEFS C2 WordReading SS") & ")"
+    ' pass values to standard score (mean:100, std:15)
+    setGenericScoreValuesMeanSD 10, 3, "15"
+    mydocument.Shapes("pp15_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("DKEFS C2 WordReading") & ")"
     
-    setGenericScoreValues age, edu, 15, "tlkpNumSpanBackwardAgeEduMeanStdDev"
-       
-    
-    TestStdDevs(16) = rs("SDMT SD")
-    mydocument.Shapes("sc16").TextFrame.TextRange.Text = "(" & rs("SDMT #Written") & ")"
-    setGenericScoreValues age, edu, 16, "tlkpSymbolDigitModalityAgeEduMeanStdDev"
-    
+    'Test Line 16
+    TestStdDevs(15) = rs("DKEFS C1 ColorNaming ZScore")
+    mydocument.Shapes("pp16_Score").TextFrame.TextRange.Text = "(" & rs("DKEFS C1 ColorNaming SS") & ")"
+    ' pass values to standard score (mean:100, std:15)
+    setGenericScoreValuesMeanSD 10, 3, "16"
+    mydocument.Shapes("pp16_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("DKEFS C1 ColorNaming") & ")"
+
     'Test Line 17
-    If rs("MINT SD") = Null Then
-        TestStdDevs(17) = rs("BN30 SD")
-        mydocument.Shapes("sc17").TextFrame.TextRange.Text = "(" & rs("BNTScore") & ")"
+    TestStdDevs(16) = rs("TrailsA ZScore")
+    mydocument.Shapes("pp17_Score").TextFrame.TextRange.Text = "(" & rs("TrailsA Sec") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "17", "[UDS3].[tlkpTrailMaking-PartA_SexAgeEduStdDev]", True
+    'setGenericScoreValuesMeanSD 10, 3, "17"
+    
+    'Test Line 18
+    TestStdDevs(17) = rs("KDC SecToComp SD")
+    mydocument.Shapes("pp18_Score").TextFrame.TextRange.Text = "(" & rs("KDC SecToComp") & ")"
+    setGenericScoreValuesAge age, "18", "[Npsych].[tlkpKendrickDigitCopyAgeMeanStdDev]"
+    
+    ''Test Line 19
+    ''Multilingual Naming Test
+    TestStdDevs(18) = rs("MINT ZScore")
+    mydocument.Shapes("pp19_Score").TextFrame.TextRange.Text = "(" & rs("MINT TS") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "19", "[UDS3].[tlkpMINT_SexAgeEduStdDev]"
+
+    'Test Line 20
+    'Letter Fluency FAS Scaled Score
+    TestStdDevs(19) = rs("FAS SD")
+    
+    If IsNumeric(rs("FAS SD")) = True Then
+        mydocument.Shapes("pp20_Score").TextFrame.TextRange.Text = "(" & CInt(rs("FAS SS")) & ")"
     Else
-        TestStdDevs(17) = rs("MINT SD")
-        mydocument.Shapes("sc17").TextFrame.TextRange.Text = "(" & rs("MINT TS") & ")"
+        mydocument.Shapes("pp20_Score").TextFrame.TextRange.Text = "(" & rs("FAS SS") & ")"
     End If
-    setGenericScoreValues age, edu, 17, "tlkpMINTAgeEduMeanStdDev"
-    
-'    'Cindy Tran 2015-08-06
-'    'updated to change MINT score to Boston Naming / MINT with bold
-'    mydocument.Shapes("sc16").TextFrame.TextRange.Text = "(" & rs("MINT TS") & "/" & rs("BNTScore") & ")"
-'
-'    Dim StartPos As Integer
-'    Dim EndPos As Integer
-'    StartPos = InStr(1, mydocument.Shapes("sc16").TextFrame.TextRange, "/")
-'    EndPos = InStr(1, mydocument.Shapes("sc16").TextFrame.TextRange, ")")
-'    mydocument.Shapes("sc16").TextFrame.TextRange.Characters(StartPos, EndPos - StartPos).Font.Bold = True
-
-    TestStdDevs(18) = rs("FAS SD")
-    mydocument.Shapes("sc18").TextFrame.TextRange.Text = "(" & rs("FAS SS") & ")"
-    
-    'Setup Category Fluency sc19
-    TestStdDevs(19) = rs("CCF SD")
-    mydocument.Shapes("sc19").TextFrame.TextRange.Text = "(" & rs("CCF TS") & ")"
-    setGenericScoreValues age, edu, 19, "tlkpCategoryFluencyAgeEduMeanStdDev"
-
-'Tina - 05/14/2015 - add TestStdDevs(19) = rs("BENSONDraw SD") & rows shift down
-    TestStdDevs(20) = rs("BENSONDraw SD")
-    mydocument.Shapes("sc20").TextFrame.TextRange.Text = "(" & rs("BENSON CFT Drawing") & ")"
-    setGenericScoreValues age, edu, 20, "tlkpBCFTDrawAgeEduStdDev"
-    
-    TestStdDevs(21) = rs("ConstPrax SD")
-    
-    TestStdDevs(22) = rs("Clock SD")
-    
-    If Not IsNull(rs("WAIS3BD SD")) Then
-        TestStdDevs(23) = rs("WAIS3BD SD")
-    Else
-        TestStdDevs(23) = Null
-    End If
+    'setGenericScoreValuesMeanSD 10, 3, "20"
+    mydocument.Shapes("pp20_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("FAS 1-3 Total Learning Scores") & ")  (" & rs("FAS TS") & ")"
     
     
-    TestStdDevs(24) = rs("Judge SD")
+    'Test Line 21
+    'Setup Category Fluency
+    TestStdDevs(20) = rs("CCF ZScore")
+    mydocument.Shapes("pp21_Score").TextFrame.TextRange.Text = "(" & rs("CCF TS") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "21", "[UDS3].[tlkpCategoryFluency-Animals_SexAgeEduStdDev]"
+    
+    ''Test Line 22
+    TestStdDevs(21) = rs("BENSON CFT Drawing ZScore")
+    mydocument.Shapes("pp22_Score").TextFrame.TextRange.Text = "(" & rs("BENSON CFT Drawing") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "22", "[UDS3].[tlkpBensonComplexFigure-Copy_SexAgeEduStdDev]"
+    
+    ''Test Line 23
+    TestStdDevs(22) = rs("BVMT Copy ZScore")
+    mydocument.Shapes("pp23_Score").TextFrame.TextRange.Text = "(" & rs("BVMT Copy") & ")"
+    setGenericScoreValuesMeanSD 11, 1.175, "23"
+    mydocument.Shapes("pp23_99").TextFrame.TextRange.Text = ""
+    mydocument.Shapes("pp23_95").TextFrame.TextRange.Text = ""
+    'mydocument.Shapes("pp23_85").TextFrame.TextRange.Text = ""
+    'mydocument.Shapes("pp23_50").TextFrame.TextRange.Text = ""
+    'mydocument.Shapes("pp23_15").TextFrame.TextRange.Text = ""
+    'mydocument.Shapes("pp23_05").TextFrame.TextRange.Text = ""
+    'mydocument.Shapes("pp23_01").TextFrame.TextRange.Text = ""
     
     
-    'Test Line 25
-    'WAISR-NI or WAIS3Sim
-    'WAISR-NI first then WAIS3Sim
+    ''Test Line 24
+    TestStdDevs(23) = rs("WAIS4 BD SD")
+    mydocument.Shapes("pp24_Score").TextFrame.TextRange.Text = "(" & rs("WAIS4 BD SS") & ")"
+    setGenericScoreValuesMeanSD 10, 3, "24"
     
-'    If Not IsNull(rs("WAISR NI Raw")) And rs("WAISR NI Raw") >= 0 Then
-'        If Not IsNull(rs("WAISR NI SD")) Then
-'            TestStdDevs(25) = rs("WAISR NI SD")
-'        Else
-'            TestStdDevs(25) = Null
-'        End If
-'    Else
-     If Not IsNull(rs("WAIS3Sim SD")) Then
-            TestStdDevs(25) = rs("WAIS3Sim SD")
-        Else
-            TestStdDevs(25) = Null
-        End If
-'    End If
-    
-
-    TestStdDevs(26) = rs("TrailsA SD")
-    TestStdDevs(27) = rs("TrailsB SD")
-    TestStdDevs(28) = rs("KDC SD")  'Kendrick Digit - Test #28 (lbl28, sc28, pp28*)
-    setGenericScoreValuesAge age, 28, "tlkpKendrickDigitCopyAgeMeanStdDev"
-    
-    
-'********************
+    mydocument.Shapes("pp24_ScoreLabels").TextFrame.TextRange.Text = "(JLO=" & rs("jlo_raw") & "/30) (Read/Set Time=" & rs("Clock ReadSetTime") & "/6)  (" & rs("WAIS4 BD") & ")"
         
+    ''Test Line 25
+    TestStdDevs(24) = rs("TrailsB ZScore")
+    mydocument.Shapes("pp25_Score").TextFrame.TextRange.Text = "(" & rs("TrailsB Sec") & ")"
+    setGenericScoreValuesSexAgeEdu sex, age, edu, "25", "[UDS3].[tlkpTrailMaking-PartB_SexAgeEduStdDev]", True
+    ''setGenericScoreValuesMeanSD 10, 3, "25"
+    
+    mydocument.Shapes("pp25_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("TrailsB Errs") & " errors)"
+    
+    
+    ''Test Line 26
+    TestStdDevs(25) = rs("DKEFS C3 Inhibition ZScore")
+    mydocument.Shapes("pp26_Score").TextFrame.TextRange.Text = "(" & rs("DKEFS C3 Inhibition SS") & ")"
+    setGenericScoreValuesMeanSD 10, 3, "26"
+    
+    mydocument.Shapes("pp26_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("DKEFS C3 Inhibition Uncorrected Errors") & " uncorrected errors) (" & rs("DKEFS C3 Inhibition") & ")"
+    
+    ''Test Line 27
+    TestStdDevs(26) = rs("DKEFS C4 InhibitionSwitching ZScore")
+    mydocument.Shapes("pp27_Score").TextFrame.TextRange.Text = "(" & rs("DKEFS C4 InhibitionSwitching SS") & ")"
+    setGenericScoreValuesMeanSD 10, 3, "27"
+    
+    mydocument.Shapes("pp27_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("DKEFS C4 InhibitionSwitching Uncorrected Errors") & " uncorrected errors) (" & rs("DKEFS C4 InhibitionSwitching") & ")"
+    
+    ''Test Line 28
+    If IsNull(rs("WCST64 Categories Complete Percentile")) Then
+        TestStdDevs(27) = Null
+        mydocument.Shapes("pp28_Score").TextFrame.TextRange.Text = ""
+    Else
+        TestStdDevs(27) = setWCST64_ZScoreValues_AgeEdu(age, edu, rs("WCST64 Categories Complete Percentile"), "NumberOfCategories", "[Npsych].[tlkpWCST64_AgeEduTScore]")
+        mydocument.Shapes("pp28_Score").TextFrame.TextRange.Text = "(" & rs("WCST64 Categories Complete") & ")"
+        setWCST64ScoreValuesAgeEdu age, edu, "28", "NumberOfCategories", "[Npsych].[tlkpWCST64_AgeEduTScore]"
+    End If
+    
+    ''Test Line 29
+    If IsNull(rs("WCST64 Categories Complete Percentile")) Then
+        TestStdDevs(28) = Null
+        mydocument.Shapes("pp29_Score").TextFrame.TextRange.Text = ""
+        setGenericScoreValuesMeanSD 50, 10, "29"
+    Else
+        TestStdDevs(28) = rs("WCST64 Perseverative Errors ZScore")
+        mydocument.Shapes("pp29_Score").TextFrame.TextRange.Text = "(" & rs("WCST64 Perseverative Errors TScore") & ")"
+        setGenericScoreValuesMeanSD 50, 10, "29" ''generic for T-Score
+        
+        mydocument.Shapes("pp29_ScoreLabels").TextFrame.TextRange.Text = "(" & rs("WCST64 Perseverative Errors") & ")"
+        
+    End If
+    
+
     'added GDS 2011-05-31 DKH
-    mydocument.Shapes("txtBoxGDSScore").TextFrame.TextRange.Text = "(" & rs("GDS GDS") & ")"
-    
+    mydocument.Shapes("txtScoreGDS").TextFrame.TextRange.Text = "(" & rs("GDS GDS") & "/15)"
+
     'moved insight rating 2017-09-14 DKH
-    mydocument.Shapes("scInsight").TextFrame.TextRange.Text = "(" & rs("Insight Rating") & ")"
-    
-    mydocument.Shapes("txtBoxWAISRInformation").TextFrame.TextRange.Text = "(" & rs("WAISRInfo SS") & ")"
-    
-    mydocument.Shapes("TxtBoxCERADDrawing").TextFrame.TextRange.Text = "(" & rs("ConstPrax TS") & ")"
-    
-    mydocument.Shapes("TxtBoxReadSetTime").TextFrame.TextRange.Text = "(" & rs("Clock TS") & ")"
-    
-    If Not IsNull(rs("WAIS3BD SS")) Then
-        mydocument.Shapes("TxtBoxWAIS3BlockDesign").TextFrame.TextRange.Text = "(" & rs("WAIS3BD SS") & ")"
-    Else
-        mydocument.Shapes("TxtBoxWAIS3BlockDesign").TextFrame.TextRange.Text = "(_)"
-    End If
-    
-'    mydocument.Shapes("TxtBoxInsight").TextFrame.TextRange.Text = "(" & rs("Insight Rating") & ")"
-    mydocument.Shapes("TxtBoxJudgement").TextFrame.TextRange.Text = "(" & rs("Judge TS") & ")"
-    
-    
-'    If rs("WAISR NI SD") = Null Or rs("WAISR NI SS") = -10 Then ''DKH edited to show only WAIS3 if NI is null or -10  2015-12-09
-        If Not IsNull(rs("WAIS3Sim SS")) Then
-            mydocument.Shapes("TxtBoxSimilarities").TextFrame.TextRange.Text = "(" & rs("WAIS3Sim SS") & ")"
-        Else
-            mydocument.Shapes("TxtBoxSimilarities").TextFrame.TextRange.Text = "(_)"
-        End If
-'    Else
-'        If Not IsNull(rs("WAISR NI SS")) Then
-'            mydocument.Shapes("TxtBoxSimilarities").TextFrame.TextRange.Text = "(" & rs("WAISR NI SS") & ")"
-'        Else
-'            mydocument.Shapes("TxtBoxSimilarities").TextFrame.TextRange.Text = "(_)"
-'        End If
-'    End If
-     
-    
-    mydocument.Shapes("TxtBoxTrailsA").TextFrame.TextRange.Text = "(" & rs("TrailsA SS") & ")"
-    mydocument.Shapes("TxtBoxTrailsB").TextFrame.TextRange.Text = "(" & rs("TrailsB SS") & ")"
-    mydocument.Shapes("sc28").TextFrame.TextRange.Text = "(" & rs("KDC SecToComp") & "/" & rs("KDC #Comp2m") & ")"
-    
+    mydocument.Shapes("txtScoreInsight").TextFrame.TextRange.Text = "(" & rs("Insight Rating") & ")"
 
-
-'********************
-'DKH comment out 2015-05-20
-'    If Not IsNull(rs("WAIS3DS SS")) Then
-'    Else
-'        LabelScores(57, 0) = 45
-'        LabelScores(57, 1) = "WAIS     Digit Span"
-'    End If
-'
-'    If Not IsNull(rs("WAIS3Sim SS")) Then
-'    Else
-'        LabelScores(56, 0) = 55
-'        LabelScores(56, 1) = "WAIS-III Similarities"
-'    End If
     
-    ' next 58
-    If Not IsNull(rs("WAIS3BD SS")) Then
-    Else
-        LabelScores(58, 0) = 53
-        LabelScores(58, 1) = "WAIS     Blk Design"
-    End If
-    
-    'rs.Close
-    
-    'cmd.CommandText = "select ptname from qryNameVisitDate where pid=" & pid & " and sid=" & sid
-    'cmd.CommandType = adCmdText
-    
-    'Set rs = cmd.Execute(retval)
-    
-    'Tina - 05/18/2015 - ' - Text Box 2 - lbl_pname
-'    mydocument.Shapes("txt").TextFrame.TextRange.Text = " "
-    'LabelScores(63, 0) = 19 ''- pname
-    'LabelScores(63, 1) = CStr(rs("Ptname"))
     mydocument.Shapes("txtPatientName").TextFrame.TextRange.Text = CStr(rs("Ptname"))
-    'LabelScores(67, 0) = 18
-    'LabelScores(67, 1) = CStr(pid)
     mydocument.Shapes("txtPatientID").TextFrame.TextRange.Text = CStr(pid)
-    
-    'rs.Close
-    
-    'cmd.CommandText = "select * from qryNameVisitDate where pid=" & pid & " and sid=" & sid & " and vnum=" & vnum
-    'cmd.CommandType = adCmdText
     
     Set rs = cmd.Execute(retval)
     
-    
     If flgLineSet = 1 Then
-'        LabelScores(65, 0) = 132
-'        LabelScores(65, 1) = CStr(Format(rs("examdate"), "YYYY"))
+        mydocument.Shapes("txtEDate").TextFrame.TextRange.Text = CStr(Format(rs("examdate"), "MM/DD/YYYY"))
         mydocument.Shapes("txtYEAR1").TextFrame.TextRange.Text = CStr(Format(rs("examdate"), "YYYY"))
-
-'Tina - 06/30/2015
-'        LabelScores(64, 0) = 20
-'        LabelScores(64, 1) = CStr(rs("examdate"))
-         mydocument.Shapes("txtEDate").TextFrame.TextRange.Text = CStr(Format(rs("examdate"), "MM/DD/YYYY"))
-    
     ElseIf flgLineSet = 2 Then
-'        LabelScores(66, 0) = 133
-'        LabelScores(66, 1) = CStr(Format(rs("examdate"), "YYYY"))
         mydocument.Shapes("txtYEAR2").TextFrame.TextRange.Text = CStr(Format(rs("examdate"), "YYYY"))
     Else
-'        LabelScores(62, 0) = 134
-'        LabelScores(62, 1) = CStr(Format(rs("examdate"), "YYYY"))
         mydocument.Shapes("txtYEAR3").TextFrame.TextRange.Text = CStr(Format(rs("examdate"), "YYYY"))
     End If
     
@@ -461,6 +514,9 @@ Dim connstring As String
     For i = 1 To UBound(TestStdDevs) + 1
         If TestStdDevs(i - 1) < -3# Then
             TestStdDevs(i - 1) = -3#
+        End If
+        If TestStdDevs(i - 1) > varCutOff Then
+            TestStdDevs(i - 1) = Null
         End If
         If TestStdDevs(i - 1) > 3# Then
             TestStdDevs(i - 1) = 3#
@@ -534,117 +590,9 @@ Dim y As Single, y1 As Single
     Next
     
 End Sub
-Sub setGenericScoreValues(age As Integer, edu As Integer, scoreitem As Integer, strTable As String)
-    Dim cmd As ADODB.Command
-    Dim rs As ADODB.Recordset
-    Dim conn As ADODB.Connection
-    Dim retval As Long
-
-    Set conn = New ADODB.Connection
-    Set cmd = New ADODB.Command
-
-    conn.Open NPsychMaster
-
-    cmd.ActiveConnection = conn
-        
-    cmd.CommandType = adCmdText
-    cmd.CommandText = "SELECT * FROM [IBACohort].[Npsych].[" & strTable & "] " + _
-        "WHERE (min_age <= " + CStr(age) + " AND max_age >= " + CStr(age) + ")" + _
-        "AND (min_edu <= " + CStr(edu) + " AND max_edu >= " + CStr(edu) + ");"
-        
-    Set rs = cmd.Execute(retval)
-    
-    Dim mydocument As Slide
-    Set mydocument = ActivePresentation.Slides(1)
-    
-    If Not rs.EOF Then
-    
-    ''Setting 99 as blank, since SD3plus is max 'DKH 2017-09-01
-    'mydocument.Shapes("pp" & scoreitem & "_99").TextFrame.TextRange.Text = ""
-    mydocument.Shapes("pp" & scoreitem & "_95").TextFrame.TextRange.Text = rs("SD2plus") & ""  ''<== trick to set null string
-    mydocument.Shapes("pp" & scoreitem & "_85").TextFrame.TextRange.Text = rs("SD1plus")
-    mydocument.Shapes("pp" & scoreitem & "_50").TextFrame.TextRange.Text = Round(rs("Mean"))
-    mydocument.Shapes("pp" & scoreitem & "_15").TextFrame.TextRange.Text = rs("SD1minus")
-    mydocument.Shapes("pp" & scoreitem & "_05").TextFrame.TextRange.Text = rs("SD2minus")
-    mydocument.Shapes("pp" & scoreitem & "_01").TextFrame.TextRange.Text = rs("SD3minus")
-
-    End If
-
-End Sub
-
-Sub setGenericScoreValuesAge(age As Integer, scoreitem As Integer, strTable As String)
-    Dim cmd As ADODB.Command
-    Dim rs As ADODB.Recordset
-    Dim conn As ADODB.Connection
-    Dim retval As Long
-
-    Set conn = New ADODB.Connection
-    Set cmd = New ADODB.Command
-
-    conn.Open NPsychMaster
-
-    cmd.ActiveConnection = conn
-        
-    cmd.CommandType = adCmdText
-    cmd.CommandText = "SELECT * FROM [IBACohort].[Npsych].[" & strTable & "] " + _
-        "WHERE (min_age <= " + CStr(age) + " AND max_age >= " + CStr(age) + ");"
-        
-    Set rs = cmd.Execute(retval)
-    
-    Dim mydocument As Slide
-    Set mydocument = ActivePresentation.Slides(1)
-    
-    If Not rs.EOF Then
-    
-    ''Setting 99 as blank, since SD3plus is max 'DKH 2017-09-01
-    'mydocument.Shapes("pp" & scoreitem & "_99").TextFrame.TextRange.Text = ""
-    mydocument.Shapes("pp" & scoreitem & "_95").TextFrame.TextRange.Text = rs("SD2plus") & ""  ''<== trick to set null string
-    mydocument.Shapes("pp" & scoreitem & "_85").TextFrame.TextRange.Text = rs("SD1plus")
-    mydocument.Shapes("pp" & scoreitem & "_50").TextFrame.TextRange.Text = Round(rs("Mean"))
-    mydocument.Shapes("pp" & scoreitem & "_15").TextFrame.TextRange.Text = rs("SD1minus")
-    mydocument.Shapes("pp" & scoreitem & "_05").TextFrame.TextRange.Text = rs("SD2minus")
-    mydocument.Shapes("pp" & scoreitem & "_01").TextFrame.TextRange.Text = rs("SD3minus")
-
-    End If
-
-End Sub
 
 
-Sub setBensonCFTDelay(age As Integer, edu As Integer, sex As Integer, scoreitem As Integer)
-    Dim cmd As ADODB.Command
-    Dim rs As ADODB.Recordset
-    Dim conn As ADODB.Connection
-    Dim retval As Long
 
-    Set conn = New ADODB.Connection
-    Set cmd = New ADODB.Command
 
-    conn.Open NPsychMaster
 
-    cmd.ActiveConnection = conn
-        
-    cmd.CommandType = adCmdText
-    cmd.CommandText = "SELECT * FROM [IBACohort].[Npsych].[tlkpBCFTDelayedSexAgeEduStdDev] " + _
-        "WHERE (min_age <= " + CStr(age) + " AND max_age >= " + CStr(age) + ")" + _
-        " AND (min_edu <= " + CStr(edu) + " AND max_edu >= " + CStr(edu) + ")" + _
-        " AND (sex = " + CStr(sex) + ");"
-        
-    Set rs = cmd.Execute(retval)
-    
-    Dim mydocument As Slide
-    Set mydocument = ActivePresentation.Slides(1)
-    
-    If Not rs.EOF Then
-    
-    ''Setting 99 & 95 as blank, since SD1plus is max 'DKH 2017-09-01
-    'mydocument.Shapes("pp" & scoreitem & "_99").TextFrame.TextRange.Text = rs("SD3plus") & ""  ''<== trick to set null string
-    mydocument.Shapes("pp" & scoreitem & "_95").TextFrame.TextRange.Text = rs("SD2plus") & ""
-    mydocument.Shapes("pp" & scoreitem & "_85").TextFrame.TextRange.Text = rs("SD1plus")
-    mydocument.Shapes("pp" & scoreitem & "_50").TextFrame.TextRange.Text = Round(rs("Mean"))
-    mydocument.Shapes("pp" & scoreitem & "_15").TextFrame.TextRange.Text = rs("SD1minus")
-    mydocument.Shapes("pp" & scoreitem & "_05").TextFrame.TextRange.Text = rs("SD2minus")
-    mydocument.Shapes("pp" & scoreitem & "_01").TextFrame.TextRange.Text = rs("SD3minus") & ""
 
-    End If
-    
-End Sub
