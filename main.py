@@ -96,12 +96,10 @@ def get_zigzag():
 
         # Process the data as needed
         response_data = {"message": "Data received successfully"}
-        ppt.Presentations.Open(".\AutoZigZagChartSQL C2.ppt")
+        ppt.Presentations.Open(r".\AutoZigZagChartSQL C2.ppt")
         # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
 
-        ppt.VBE.ActiveVBProject.VBComponents.Import(
-            r"\\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas"
-        )
+        ppt.VBE.ActiveVBProject.VBComponents.Import(r".\modMain.bas")
         # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
 
         ppt.Run("SetDBMaster", SQLMasterData)
