@@ -32,3 +32,13 @@ python main.py
 # Deactivate when done
 deactivate
 ```
+
+## connection_string.txt set up
+In development, if your UCI MIND account has access to the database, you can use this string instead.
+```
+"DRIVER={SQL Server};Provider=SQLOLEDB;Server=____;Database=____;Integrated Security=SSPI;DataTypeCompatibility=80;MARS Connection=True;"
+```
+In production, please replace the underscores with the correct information of the database server and user.
+```
+"DRIVER={SQL Server};Provider=SQLOLEDB;Server=____.uci.edu;Database=____;User Id=____;Password=____;DataTypeCompatibility=80;MARS Connection=True;"
+```
