@@ -189,7 +189,7 @@ def get_patient():
         return Patients(patients=list(patient_dict.keys()))
     
     except Exception as e:
-        print_log("Error Loading Patients", str(e))
+        print_log(f"Error Loading Zig Zag, {str(e)}")
         return ({"detail": "Not Found", 
                  "error": str(e)})
 
@@ -279,7 +279,7 @@ def get_zigzag(request: RequestedZigzag):
         return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pdf')
         
     except Exception as e:
-        print_log("Error Loading Zig Zag", str(e))
+        print_log(f"Error Loading Zig Zag, {str(e)}")
         return ({"detail": "Not Found", 
                  "error": str(e)})
 
@@ -353,6 +353,7 @@ def get_ppt(request: RequestedZigzag):
 >>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
     except Exception as e:
 <<<<<<< HEAD
+<<<<<<< HEAD
         print("Error Loading Zig Zag", str(e))
         return jsonify({"error": str(e)}), 500
     
@@ -409,6 +410,9 @@ flask_app.config["APPLICATION_ROOT"] = URL_PREFIX
 flask_app.register_blueprint(bp, url_prefix=URL_PREFIX)
 =======
         print_log("Error Loading Zig Zag", str(e))
+=======
+        print_log(f"Error Loading Zig Zag, {str(e)}")
+>>>>>>> bab12a8 (fix error printing bugs)
         return ({"detail": "Not Found", 
                  "error": str(e)})
 >>>>>>> 46216e5 (add print_log function for logging timestamps)
