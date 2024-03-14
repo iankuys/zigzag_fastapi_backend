@@ -1,3 +1,293 @@
+<<<<<<< HEAD
+import flask
+from flask import Blueprint, Flask, jsonify, send_file, request
+import pyodbc
+from flask_cors import CORS
+from collections import defaultdict
+import win32com.client
+import win32com
+
+from typing import List
+from pydantic import BaseModel
+from pathlib import Path
+import waitress
+
+PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
+PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
+BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
+OUT_PPT = Path(PATH_TO_THIS_FOLDER, "output.pptm").resolve()
+OUT_PDF = Path(PATH_TO_THIS_FOLDER, "output.pdf").resolve()
+HOST = "127.0.0.1"
+PORT = "4997"
+URL_PREFIX = "/zigzag_backend"
+
+bp = Blueprint(
+    "main_blueprint", __name__, static_folder="static", template_folder="templates"
+)
+
+SQLMasterData = (
+    "Provider=SQLOLEDB;"
+    "Server=Spinal;"
+    "Database=IBACohortReports;"
+    "Integrated Security=SSPI;"
+    "DataTypeCompatibility=80;"
+    "MARS Connection=True;"
+)
+cnxn = pyodbc.connect(
+    "DRIVER={SQL Server};"
+    "Provider=SQLOLEDB;"
+    "Server=Spinal;"
+    "Database=IBACohortReports;"
+    "Integrated Security=SSPI;"
+    "DataTypeCompatibility=80;"
+    "MARS Connection=True;"
+)
+
+patient_dict = defaultdict()
+queried = False
+
+<<<<<<< HEAD
+class Patient(BaseModel):
+    id: int
+=======
+def timestamp_now(compact=False, only_ymd=False) -> str: 
+    """Credit: Brandon
+        Returns a string of the current date+time in the form of
+        YYYY-MM-DD hh:mm:ss
+    If `compact` == True, then returns in the form of
+        YYYYMMDD_hhmmss
+    If `only_ymd` == True, then only the first "year/month/day" portion is returned:
+        YYYY-MM-DD or YYYYMMDD
+    """
+    timestamp = datetime.now()
+    if compact:
+        if only_ymd:
+            return timestamp.strftime("%Y%m%d")
+        return timestamp.strftime("%Y%m%d_%H%M%S")
+    if only_ymd:
+        return timestamp.strftime("%Y-%m-%d")
+    return timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+class Patients(BaseModel):
+    patients: List[int]
+
+class Visits(BaseModel):
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
+    visits: List[int]
+
+
+class PatientData(BaseModel):
+    datas: List[Patient]
+
+@bp.route("/get_patients", methods=["GET"])
+def get_patient():
+    global queried
+    global patient_dict
+    cursor = cnxn.cursor()
+    
+    print(f'Will Query DB: {not queried}')
+    if not queried:
+        cursor.execute(
+            "SELECT [PatientID], [VisitNumber] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
+        )
+        rows = cursor.fetchall()
+        for row in rows:
+            if row.PatientID not in patient_dict:
+                patient_dict[row.PatientID] = []
+            patient_dict[row.PatientID].append(row.VisitNumber)
+        queried = True
+        print('Queried Complete!')
+
+    response = flask.jsonify(patients=list(patient_dict.keys()))
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
+
+
+@bp.route("/get_visits", methods=["GET"])
+def get_visits():
+    args = request.args
+    patient_id = args.get("patient_id")
+    response = jsonify(visits=patient_dict[int(patient_id)])
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    print("Visits request completed ")
+    return response
+
+
+@bp.route("/get_zigzag", methods=["POST"])
+def get_zigzag():
+    try:
+        data = request.json  # Assuming the data is in JSON format
+        print(f'Requested data: {data}')
+
+        global path_to_pptx
+
+        visits = data.get("visits")
+        p_id = data.get("patient_id")
+
+        ppt = win32com.client.Dispatch("PowerPoint.Application")
+
+        # Process the data as needed
+        response_data = {"message": "Data received successfully"}
+        wb = ppt.Presentations.Open(PPT_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
+
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+
+        ppt.Run("SetDBMaster", SQLMasterData)
+
+        # if visits are more than one we run the macro for multiple zigzags
+        if len(visits) > 1:
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
+        else:
+            ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
+
+        print("Completed Zig Zag")
+
+        # Save the PowerPoint file to a temporary location
+<<<<<<< HEAD
+        wb.SaveAs(OUT_PDF, 32)
+=======
+        # copy operation
+        destination = this_session_folder / f"{session_id}.pdf"
+
+        wb.SaveAs(destination, 32)
+        ppt.Quit()
+
+        print("Sending PDF File.")
+
+        headers = {
+            "Access-Control-Expose-Headers": "*",
+            "Content-Type": "application/pdf"
+        }
+        
+        return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pdf')
+        
+    except Exception as e:
+        print("Error Loading Zig Zag", str(e))
+        return ({"detail": "Not Found", 
+                 "error": str(e)})
+
+@app.post("/get_ppt")
+async def get_ppt(request: RequestedZigzag):
+    try:
+        global path_to_pptx
+
+        p_id = request.p_id
+        visits = list(request.visits)
+        print(f'Requested data: {p_id}, {request.visits}')
+
+        cur_time = timestamp_now(compact=True)
+        session_id = f"{cur_time}-{'-'.join(map(str, list(request.visits)))}"
+        this_session_folder = PATH_TO_SESSIONS_FOLDER / session_id
+        
+        # make new folder for session
+        this_session_folder.mkdir()
+
+        # copy operation
+        destination = this_session_folder / f"{session_id}.pptm"
+        destination.write_bytes(PPT_FILE.read_bytes())
+
+        ppt = win32com.client.Dispatch("PowerPoint.Application")
+
+        wb = ppt.Presentations.Open(destination)
+        # Original location: \\marcfs\Database\Reports\ZigZag\stdbatt_v2022.pptm
+        
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+
+        ppt.Run("SetDBMaster", SQLMasterData)
+
+        # if visits are more than one we run the macro for multiple zigzags
+        if len(visits) > 1:
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
+        else:
+            ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
+
+        print("Completed Zig Zag")
+
+        # Save the PowerPoint file to a temporary location
+        wb.SaveAs(destination)
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
+        ppt.Quit()
+
+        print("Sending Powerpoint File.")
+        
+<<<<<<< HEAD
+        return send_file(OUT_PDF, as_attachment=True, download_name='output.pdf')
+
+=======
+        return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pptm')
+    
+>>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
+    except Exception as e:
+        print("Error Loading Zig Zag", str(e))
+        return jsonify({"error": str(e)}), 500
+    
+
+@bp.route("get_ppt", methods=["POST"])
+def get_ppt():
+    try:
+        data = request.json  # Assuming the data is in JSON format
+        print(f'Requested data: {data}')
+
+        global path_to_pptx
+
+        visits = data.get("visits")
+        p_id = data.get("patient_id")
+
+        ppt = win32com.client.Dispatch("PowerPoint.Application")
+
+        # Process the data as needed
+        response_data = {"message": "Data received successfully"}
+        wb = ppt.Presentations.Open(PPT_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
+
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
+        # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+
+        ppt.Run("SetDBMaster", SQLMasterData)
+
+        # if visits are more than one we run the macro for multiple zigzags
+        if len(visits) > 1:
+            color = 1
+            for visit in visits:
+                ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
+                color += 1
+        else:
+            ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
+
+        print("Completed Zig Zag")
+
+        # Save the PowerPoint file to a temporary location
+        wb.SaveAs(OUT_PPT)
+        ppt.Quit()
+
+        print("Sending Powerpoint File.")
+        
+        return send_file(OUT_PPT, as_attachment=True, download_name='output.pptm')
+
+    except Exception as e:
+        print("Error Loading Zig Zag", str(e))
+        return jsonify({"error": str(e)}), 500
+
+flask_app = Flask(__name__)
+CORS(flask_app)  # Enable CORS for all routes
+flask_app.config["APPLICATION_ROOT"] = URL_PREFIX
+flask_app.register_blueprint(bp, url_prefix=URL_PREFIX)
+
+if __name__ == "__main__":
+    print(f"Attempting to serve on http://{HOST}:{PORT}{URL_PREFIX}")
+
+    listenStr = f"{HOST}:{PORT}"
+    waitress.serve(flask_app, listen=listenStr, log_untrusted_proxy_headers=True)
+=======
 from typing import List
 import pyodbc
 from collections import defaultdict
@@ -168,3 +458,4 @@ async def get_zigzag(request: RequestedZigzag):
 
 if __name__ == "__main__":
     uvicorn.run(app, port=8000, host="0.0.0.0")
+>>>>>>> refs/rewritten/main-3
