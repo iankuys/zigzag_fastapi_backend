@@ -250,10 +250,10 @@ def get_zigzag(request: RequestedZigzag):
 
         # if visits are more than one we run the macro for multiple zigzags
         if len(visits) > 1:
-            color = 1
+            color = len(visits)
             for visit in visits:
                 ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
-                color += 1
+                color -= 1
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
@@ -315,10 +315,10 @@ def get_ppt(request: RequestedZigzag):
 
         # if visits are more than one we run the macro for multiple zigzags
         if len(visits) > 1:
-            color = 1
+            color = len(visits)
             for visit in visits:
                 ppt.Run("SetSubject", int(p_id), 1, int(visit), color)
-                color += 1
+                color -= 1
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
