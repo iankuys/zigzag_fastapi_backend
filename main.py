@@ -210,8 +210,25 @@ def get_zigzag(request: RequestedZigzag):
 
         global path_to_pptx
 
+<<<<<<< HEAD
         visits = data.get("visits")
         p_id = data.get("patient_id")
+=======
+        p_id = request.p_id
+        visits = list(request.visits)
+        print(f'Requested data: {p_id}, {request.visits}')
+
+        cur_time = timestamp_now(compact=True)
+        session_id = f"{cur_time}-{p_id}-{'-'.join(map(str, list(request.visits)))}"
+        this_session_folder = PATH_TO_SESSIONS_FOLDER / session_id
+        
+        # make new folder for session
+        this_session_folder.mkdir()
+
+        # copy operation
+        destination = this_session_folder / f"{session_id}.pptm"
+        destination.write_bytes(PPT_FILE.read_bytes())
+>>>>>>> 04c55a9 (added p_id to sessionid)
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
 
@@ -276,7 +293,7 @@ def get_ppt(request: RequestedZigzag):
         print(f'Requested data: {p_id}, {request.visits}')
 
         cur_time = timestamp_now(compact=True)
-        session_id = f"{cur_time}-{'-'.join(map(str, list(request.visits)))}"
+        session_id = f"{cur_time}-{p_id}-{'-'.join(map(str, list(request.visits)))}"
         this_session_folder = PATH_TO_SESSIONS_FOLDER / session_id
         
         # make new folder for session
@@ -388,6 +405,7 @@ def terminate_background():
     BACKGROUND_TASK.join()
 
 if __name__ == "__main__":
+<<<<<<< HEAD
 <<<<<<< HEAD
     print(f"Attempting to serve on http://{HOST}:{PORT}{URL_PREFIX}")
 
@@ -567,6 +585,9 @@ if __name__ == "__main__":
 >>>>>>> refs/rewritten/main-3
 =======
     uvicorn.run(app, port=8000)
+=======
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+>>>>>>> 04c55a9 (added p_id to sessionid)
     stop_event.set()
 
     
