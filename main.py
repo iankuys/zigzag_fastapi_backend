@@ -1,5 +1,5 @@
 import flask
-from flask import Flask, jsonify, render_template, request
+from flask import Blueprint, Flask, jsonify, render_template, request
 import pyodbc
 from flask_cors import CORS
 from collections import defaultdict
@@ -8,6 +8,19 @@ import win32com
 
 from typing import List
 from pydantic import BaseModel
+from pathlib import Path
+import waitress
+
+PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
+PPT_FILE = Path(PATH_TO_THIS_FOLDER, "AutoZigZagChartSQL C2.ppt").resolve()
+BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
+HOST = "127.0.0.1"
+PORT = "4997"
+URL_PREFIX = "/zigzag_backend"
+
+bp = Blueprint(
+    "main_blueprint", __name__, static_folder="static", template_folder="templates"
+)
 
 SQLMasterData = (
     "Provider=SQLOLEDB;"
@@ -27,11 +40,8 @@ cnxn = pyodbc.connect(
     "MARS Connection=True;"
 )
 
-flask_app = Flask(__name__)
-CORS(flask_app)  # Enable CORS for all routes
 patient_dict = defaultdict()
 queried = False
-
 
 class Patient(BaseModel):
     id: int
@@ -41,50 +51,45 @@ class Patient(BaseModel):
 class PatientData(BaseModel):
     datas: List[Patient]
 
-
-@flask_app.route("/")
-def root():
-    return render_template("index.html")
-
-
-@flask_app.route("/get_patients", methods=["GET"])
+@bp.route("/get_patients", methods=["GET"])
 def get_patient():
     global queried
     global patient_dict
     cursor = cnxn.cursor()
-    cursor.execute(
-        "SELECT [PatientID], [VisitNumber] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
-    )
-
-    rows = cursor.fetchall()
-
-    print(queried)
+    
+    print(f'Will Query DB: {not queried}')
     if not queried:
+        cursor.execute(
+            "SELECT [PatientID], [VisitNumber] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
+        )
+        rows = cursor.fetchall()
         for row in rows:
             if row.PatientID not in patient_dict:
                 patient_dict[row.PatientID] = []
             patient_dict[row.PatientID].append(row.VisitNumber)
         queried = True
+        print('Queried Complete!')
 
     response = flask.jsonify(patients=list(patient_dict.keys()))
     response.headers.add("Access-Control-Allow-Origin", "*")
     return response
 
 
-@flask_app.route("/get_visits", methods=["GET"])
+@bp.route("/get_visits", methods=["GET"])
 def get_visits():
     args = request.args
     patient_id = args.get("patient_id")
     response = jsonify(visits=patient_dict[int(patient_id)])
     response.headers.add("Access-Control-Allow-Origin", "*")
-    print(response)
+    print("Visits request completed ")
     return response
 
 
-@flask_app.route("/get_zigzag", methods=["POST"])
+@bp.route("/get_zigzag", methods=["POST"])
 def get_zigzag():
     try:
         data = request.json  # Assuming the data is in JSON format
+        print(data)
 
         global path_to_pptx
 
@@ -93,14 +98,17 @@ def get_zigzag():
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
         ppt.Visible = True
+        print('here0')
 
         # Process the data as needed
         response_data = {"message": "Data received successfully"}
-        ppt.Presentations.Open(r".\AutoZigZagChartSQL C2.ppt")
+        ppt.Presentations.Open(PPT_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\AutoZigZagChartSQL C2.ppt
+        print('here1')
 
-        ppt.VBE.ActiveVBProject.VBComponents.Import(r".\modMain.bas")
+        ppt.VBE.ActiveVBProject.VBComponents.Import(BAS_FILE)
         # Original location: \\marcfs\Database\Reports\ZigZag\StdBatt_v2022_Vue.JS\modMain.bas
+        print('here2')
 
         ppt.Run("SetDBMaster", SQLMasterData)
 
@@ -113,11 +121,21 @@ def get_zigzag():
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
+        print("Completed Zig Zag")
         return jsonify(response_data)
 
     except Exception as e:
+        print("Error Loading Zig Zag", str(e))
         return jsonify({"error": str(e)}), 500
 
 
+flask_app = Flask(__name__)
+CORS(flask_app)  # Enable CORS for all routes
+flask_app.config["APPLICATION_ROOT"] = URL_PREFIX
+flask_app.register_blueprint(bp, url_prefix=URL_PREFIX)
+
 if __name__ == "__main__":
-    flask_app.run()
+    print(f"Attempting to serve on http://{HOST}:{PORT}{URL_PREFIX}")
+
+    listenStr = f"{HOST}:{PORT}"
+    waitress.serve(flask_app, listen=listenStr, log_untrusted_proxy_headers=True)
