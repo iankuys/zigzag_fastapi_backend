@@ -1,4 +1,4 @@
-FROM python:3.11.5-windowsservercore-ltsc2022
+FROM python:3.11.7-windowsservercore-ltsc2022
 
 ENV TZ="America/Los_Angeles"
 ENV PYTHONUNBUFFERED=1
@@ -15,7 +15,7 @@ COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # define the port number the container should expose
-EXPOSE 5000
+EXPOSE 4997
 
 # run the command
-CMD ["python", "./main.py"]
+CMD ["waitress-serve", "--host", "0.0.0.0", "--port", "4997", "main:flask_app"]
