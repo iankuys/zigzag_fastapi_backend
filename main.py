@@ -202,8 +202,12 @@ def get_visits(p_id: int):
         return Visits(visits=[], years=[])
 
 @app.post("/get_zigzag")
+<<<<<<< HEAD
 def get_zigzag(request: RequestedZigzag):
 >>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
+=======
+async def get_zigzag(request: RequestedZigzag):
+>>>>>>> c064abd (change zigzag endpoints to asynchronous)
     try:
         data = request.json  # Assuming the data is in JSON format
         print(f'Requested data: {data}')
@@ -284,7 +288,7 @@ def get_zigzag(request: RequestedZigzag):
                  "error": str(e)})
 
 @app.post("/get_ppt")
-def get_ppt(request: RequestedZigzag):
+async def get_ppt(request: RequestedZigzag):
     try:
         global path_to_pptx
 
