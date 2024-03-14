@@ -1,17 +1,38 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import flask
 from flask import Blueprint, Flask, jsonify, send_file, request
+=======
+>>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
 import pyodbc
 from flask_cors import CORS
 from collections import defaultdict
 import win32com.client
 import win32com
+<<<<<<< HEAD
 
 from typing import List
 from pydantic import BaseModel
 from pathlib import Path
 import waitress
 
+=======
+from datetime import datetime
+from pathlib import Path
+import atexit
+import threading
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+
+from background_task import BackgroundTasks
+from pydantic_models import Patients, Visits, RequestedZigzag
+
+patient_dict = defaultdict()
+queried = False
+>>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
 PATH_TO_THIS_FOLDER = Path(__file__).resolve().parent
 PPT_FILE = Path(PATH_TO_THIS_FOLDER, "stdbatt_v2022.pptm").resolve()
 BAS_FILE = Path(PATH_TO_THIS_FOLDER, "modMain.bas").resolve()
@@ -21,26 +42,27 @@ HOST = "127.0.0.1"
 PORT = "4997"
 URL_PREFIX = "/zigzag_backend"
 
+<<<<<<< HEAD
 bp = Blueprint(
     "main_blueprint", __name__, static_folder="static", template_folder="templates"
 )
+=======
+if PATH_TO_SESSIONS_FOLDER.is_dir() == False:
+    PATH_TO_SESSIONS_FOLDER.mkdir()
+
+BACKGROUND_TASK = BackgroundTasks(path=PATH_TO_SESSIONS_FOLDER)
+
+print("Starting background thread")
+BACKGROUND_TASK.start()
+
+origins = ["*"]
+>>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
 
 SQLMasterData = (
-    "Provider=SQLOLEDB;"
-    "Server=Spinal;"
-    "Database=IBACohortReports;"
-    "Integrated Security=SSPI;"
-    "DataTypeCompatibility=80;"
-    "MARS Connection=True;"
+    "Provider=SQLOLEDB;Server=Spinal;Database=IBACohortReports;Integrated Security=SSPI;DataTypeCompatibility=80;MARS Connection=True;"
 )
 cnxn = pyodbc.connect(
-    "DRIVER={SQL Server};"
-    "Provider=SQLOLEDB;"
-    "Server=Spinal;"
-    "Database=IBACohortReports;"
-    "Integrated Security=SSPI;"
-    "DataTypeCompatibility=80;"
-    "MARS Connection=True;"
+    "DRIVER={SQL Server};Provider=SQLOLEDB;Server=Spinal;Database=IBACohortReports;Integrated Security=SSPI;DataTypeCompatibility=80;MARS Connection=True;"
 )
 
 patient_dict = defaultdict()
@@ -68,9 +90,9 @@ def timestamp_now(compact=False, only_ymd=False) -> str:
         return timestamp.strftime("%Y-%m-%d")
     return timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-class Patients(BaseModel):
-    patients: List[int]
+app = FastAPI(openapi_url=None)
 
+<<<<<<< HEAD
 class Visits(BaseModel):
 >>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
     visits: List[int]
@@ -115,6 +137,53 @@ def get_visits():
 
 @bp.route("/get_zigzag", methods=["POST"])
 def get_zigzag():
+=======
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/get_patients")
+def get_patient():
+    try:
+        global queried
+        global patient_dict
+        cursor = cnxn.cursor()
+        
+        print(f'Will Query DB: {not queried}')
+        if not queried:
+            cursor.execute(
+                "SELECT [PatientID], [VisitNumber] FROM [IBACohort].[Npsych].[vwScores_StdBatt_v2022]"
+            )
+            rows = cursor.fetchall()
+            for row in rows:
+                if row.PatientID not in patient_dict:
+                    patient_dict[row.PatientID] = []
+                patient_dict[row.PatientID].append(row.VisitNumber)
+            queried = True
+            print('Queried Complete!')
+
+        return Patients(patients=list(patient_dict.keys()))
+    
+    except Exception as e:
+        print("Error Loading Patients", str(e))
+        return ({"detail": "Not Found", 
+                 "error": str(e)})
+
+@app.get("/get_visits")
+def get_visits(p_id: int):
+    try:
+        return Visits(visits=patient_dict[int(p_id)])
+    except Exception as e:
+        print("Unable to find patient ID", str(e))
+        return Visits(visits=[])
+
+@app.post("/get_zigzag")
+def get_zigzag(request: RequestedZigzag):
+>>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
     try:
         data = request.json  # Assuming the data is in JSON format
         print(f'Requested data: {data}')
@@ -172,7 +241,7 @@ def get_zigzag():
                  "error": str(e)})
 
 @app.post("/get_ppt")
-async def get_ppt(request: RequestedZigzag):
+def get_ppt(request: RequestedZigzag):
     try:
         global path_to_pptx
 
@@ -212,7 +281,7 @@ async def get_ppt(request: RequestedZigzag):
 
         print("Completed Zig Zag")
 
-        # Save the PowerPoint file to a temporary location
+        # Save the PowerPoint file to a tempor  ary location
         wb.SaveAs(destination)
 >>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
         ppt.Quit()
@@ -282,7 +351,13 @@ CORS(flask_app)  # Enable CORS for all routes
 flask_app.config["APPLICATION_ROOT"] = URL_PREFIX
 flask_app.register_blueprint(bp, url_prefix=URL_PREFIX)
 
+@atexit.register
+def terminate_background():
+    print("Terminating background thread")
+    BACKGROUND_TASK.join()
+
 if __name__ == "__main__":
+<<<<<<< HEAD
     print(f"Attempting to serve on http://{HOST}:{PORT}{URL_PREFIX}")
 
     listenStr = f"{HOST}:{PORT}"
@@ -459,3 +534,11 @@ async def get_zigzag(request: RequestedZigzag):
 if __name__ == "__main__":
     uvicorn.run(app, port=8000, host="0.0.0.0")
 >>>>>>> refs/rewritten/main-3
+=======
+    uvicorn.run(app, port=8000)
+    print(threading.active_count())
+    BACKGROUND_TASK.join()
+    print(threading.active_count())
+
+    
+>>>>>>> 08cce2e (moved classes to different files for better code readability, added backgroundtask class for deleting old generated zig zag folders)
