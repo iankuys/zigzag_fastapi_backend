@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse
 
 from utils.background_task import BackgroundTasks
 from models.pydantic_models import Patients, Visits, RequestedZigzag
-from utils.helper import get_connection_str, timestamp_now
+from utils.utils import get_connection_str, timestamp_now, print_log
 
 patient_dict = defaultdict()
 queried = False
@@ -62,7 +62,7 @@ if PATH_TO_SESSIONS_FOLDER.is_dir() == False:
 
 BACKGROUND_TASK = BackgroundTasks(path=PATH_TO_SESSIONS_FOLDER, stop_event=stop_event)
 
-print("Starting background thread")
+print_log("Starting background thread")
 BACKGROUND_TASK.start()
 
 <<<<<<< HEAD
@@ -184,7 +184,7 @@ def get_patient():
                     patient_dict[row.PatientID] = []
                 patient_dict[row.PatientID].append((row.VisitNumber, row.Year))
             queried = True
-            print('Queried Complete!')
+            print_log('Queried Complete!')
 
         return Patients(patients=list(patient_dict.keys()))
     
@@ -216,7 +216,7 @@ def get_zigzag(request: RequestedZigzag):
 =======
         p_id = request.p_id
         visits = list(request.visits)
-        print(f'Requested data: {p_id}, {request.visits}')
+        print_log(f'Requested data: {p_id}, {request.visits}')
 
         cur_time = timestamp_now(compact=True)
         session_id = f"{cur_time}-{p_id}-{'-'.join(map(str, list(request.visits)))}"
@@ -257,7 +257,7 @@ def get_zigzag(request: RequestedZigzag):
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
-        print("Completed Zig Zag")
+        print_log("Completed Zig Zag")
 
         # Save the PowerPoint file to a temporary location
 <<<<<<< HEAD
@@ -269,7 +269,7 @@ def get_zigzag(request: RequestedZigzag):
         ppt_file.SaveAs(destination, 32)
         ppt_file.Close()
 
-        print("Sending PDF File.")
+        print_log("Sending PDF File.")
 
         headers = {
             "Access-Control-Expose-Headers": "*",
@@ -279,7 +279,7 @@ def get_zigzag(request: RequestedZigzag):
         return FileResponse(path=destination, headers=headers, filename=f'{session_id}.pdf')
         
     except Exception as e:
-        print("Error Loading Zig Zag", str(e))
+        print_log("Error Loading Zig Zag", str(e))
         return ({"detail": "Not Found", 
                  "error": str(e)})
 
@@ -290,7 +290,7 @@ def get_ppt(request: RequestedZigzag):
 
         p_id = request.p_id
         visits = list(request.visits)
-        print(f'Requested data: {p_id}, {request.visits}')
+        print_log(f'Requested data: {p_id}, {request.visits}')
 
         cur_time = timestamp_now(compact=True)
         session_id = f"{cur_time}-{p_id}-{'-'.join(map(str, list(request.visits)))}"
@@ -322,7 +322,7 @@ def get_ppt(request: RequestedZigzag):
         else:
             ppt.Run("SetSubject", int(p_id), 1, int(visits[0]), 1)
 
-        print("Completed Zig Zag")
+        print_log("Completed Zig Zag")
 
         # Save the PowerPoint file to a tempor  ary location
 <<<<<<< HEAD
@@ -334,7 +334,15 @@ def get_ppt(request: RequestedZigzag):
         ppt_file.Close()
 >>>>>>> ddc0d41 (moved classes into a different file to improve the structure of project)
 
+<<<<<<< HEAD
         print("Sending Powerpoint File.")
+=======
+        print_log("Sending Powerpoint File.")
+
+        headers = {
+            "Access-Control-Expose-Headers": "*"
+        }
+>>>>>>> 46216e5 (add print_log function for logging timestamps)
         
 <<<<<<< HEAD
         return send_file(OUT_PDF, as_attachment=True, download_name='output.pdf')
@@ -344,6 +352,7 @@ def get_ppt(request: RequestedZigzag):
     
 >>>>>>> 415cdb1 (added new get_zigzag endpoint which returns pdf file, get ppt endpoint returns ppt file)
     except Exception as e:
+<<<<<<< HEAD
         print("Error Loading Zig Zag", str(e))
         return jsonify({"error": str(e)}), 500
     
@@ -398,10 +407,15 @@ flask_app = Flask(__name__)
 CORS(flask_app)  # Enable CORS for all routes
 flask_app.config["APPLICATION_ROOT"] = URL_PREFIX
 flask_app.register_blueprint(bp, url_prefix=URL_PREFIX)
+=======
+        print_log("Error Loading Zig Zag", str(e))
+        return ({"detail": "Not Found", 
+                 "error": str(e)})
+>>>>>>> 46216e5 (add print_log function for logging timestamps)
 
 @atexit.register
 def terminate_background():
-    print("Terminating background thread")
+    print_log("Terminating background thread")
     BACKGROUND_TASK.join()
 
 if __name__ == "__main__":

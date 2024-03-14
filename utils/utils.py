@@ -27,3 +27,7 @@ def get_connection_str(filename, type):
             return f'"{";".join(connection_str)[1:-1]}'
         else:
             return f'{";".join(connection_str)[1:-1]}'
+
+def print_log(message: str) -> None:
+    print(f'[{timestamp_now()}] {message}')
+    return
