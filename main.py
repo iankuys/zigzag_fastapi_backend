@@ -90,7 +90,7 @@ def get_visits():
 def get_zigzag():
     try:
         data = request.json  # Assuming the data is in JSON format
-        print(data)
+        print(f'Requested data: {data}')
 
         global path_to_pptx
 
@@ -98,7 +98,6 @@ def get_zigzag():
         p_id = data.get("patient_id")
 
         ppt = win32com.client.Dispatch("PowerPoint.Application")
-        print('here0')
 
         # Process the data as needed
         response_data = {"message": "Data received successfully"}
