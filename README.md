@@ -1,7 +1,23 @@
 # VueZigZagBE
 
-Written with Python 3.12.0.
+This tool automates the generation of **zig-zag filled PowerPoint presentations** for use in **UCI MIND** research. It is designed to streamline patient record creation and standardize how data is presented across studies.
 
+The system combines a **Visual Basic Script (VBS)** for advanced PowerPoint manipulation with a **Python FastAPI** backend to manage patient data, trigger generation tasks, and provide an interface for integration or automation.
+
+## Features
+
+- Automatically generates zig-zag visual layouts in PowerPoint
+- Accepts patient data via REST API
+- Triggers and controls VBS execution from the FastAPI backend
+- Maintains logs/records of generated presentations
+- Customizable templates for consistent research formatting
+
+## Use Cases
+
+- Streamlined presentation generation for cognitive or memory trials
+- Automatic documentation of patient sessions or study outcomes
+- Standardized slide creation for multi-participant research studies
+## connection_string.txt set up
 ## Dev environment set up
 
 1. Create a virtual environment for developing this app (example with PowerShell on Windows 11):
@@ -42,3 +58,5 @@ In production, please replace the underscores with the correct information of th
 ```
 "DRIVER={SQL Server};Provider=SQLOLEDB;Server=____.uci.edu;Database=____;User Id=____;Password=____;DataTypeCompatibility=80;MARS Connection=True;"
 ```
+
+*For research use at UCI MIND only.*
