@@ -1,8 +1,7 @@
 # VueZigZagBE
+This tool automates the generation of **zig-zag filled PowerPoint presentations** for use in **UCI MIND** research. It streamlines patient record presentation, supports research consistency, and reduces manual slide creation.
 
-This tool automates the generation of **zig-zag filled PowerPoint presentations** for use in **UCI MIND** research. It is designed to streamline patient record creation and standardize how data is presented across studies.
-
-The system combines a **Visual Basic Script (VBS)** for advanced PowerPoint manipulation with a **Python FastAPI** backend to manage patient data, trigger generation tasks, and provide an interface for integration or automation.
+The system integrates a **Visual Basic Script (VBS)** for dynamic PowerPoint manipulation, a **Python FastAPI backend** for orchestration, and connects to a **Microsoft SQL Server** database to fetch patient data like ID and Subject Health Identifier (SHI).
 
 ## Features
 
